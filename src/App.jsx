@@ -155,10 +155,8 @@ export default function App() {
   const renderWeeklyView = () => {
     const days = Object.keys(schedule);
     return (
-      // Added flex, flex-col, and h-full to make the container flexible
       <div className="p-6 bg-[#381E10] rounded-xl flex flex-col h-full">
         <h1 className="text-2xl font-bold text-amber-200 mb-4 shrink-0">Weekly Overview</h1>
-        {/* Added overflow-x-hidden to prevent horizontal scrollbar on hover */}
         <div className="space-y-3 overflow-y-auto custom-scrollbar pr-1 overflow-x-hidden">
           {days.map(day => {
             const slots = formatSlotsForDay(day);
@@ -192,9 +190,38 @@ export default function App() {
     );
   };
   
+  // NEW: Helper function to calculate consecutive booked time blocks
+  const calculateBlocks = (hours, bookedHours) => {
+    const blocks = [];
+    let i = 0;
+    while (i < hours.length) {
+        const hour = hours[i];
+        if (bookedHours.includes(hour)) {
+            const startIndex = i;
+            let endIndex = i;
+            while (endIndex + 1 < hours.length && bookedHours.includes(hours[endIndex + 1])) {
+                endIndex++;
+            }
+            
+            blocks.push({
+                startHour: hour,
+                top: `${startIndex * 3}rem`, // h-12 is 3rem
+                height: `${(endIndex - startIndex + 1) * 3}rem`
+            });
+
+            i = endIndex + 1;
+        } else {
+            i++;
+        }
+    }
+    return blocks;
+  };
+
+  // REFACTORED: This function now renders slots and booked blocks separately
   const renderTimeSlots = (isEditMode = false) => {
       const hours = Array.from({ length: 17 }, (_, i) => i + 6); // 6 AM to 10 PM (22:00)
       const bookedHours = schedule[view.day];
+      const bookedBlocks = calculateBlocks(hours, bookedHours);
 
       return (
           <div className="flex-grow flex pr-8">
@@ -214,26 +241,19 @@ export default function App() {
                    ))}
               </div>
 
-              {/* Slots visualization */}
+              {/* Slots visualization container */}
               <div className="flex-1 relative">
+                  {/* Layer 1: Background for temporary selections and click handling */}
                   {hours.map(hour => {
                       const isBooked = bookedHours.includes(hour);
                       const isTempSelected = tempSelection.includes(hour);
                       
                       let bgColor = 'bg-transparent';
-                      let cursor = 'cursor-pointer';
-                      let content = null;
-                      
-                      if(isBooked) {
-                          bgColor = 'bg-amber-600/50';
-                          cursor = 'cursor-not-allowed';
-                          if(isEditMode) {
-                             content = <div className="absolute top-1/2 -translate-y-12 left-2 text-white/70 text-xs flex items-center"><LockIcon /> Booked</div>;
-                          }
-                      } else if (isTempSelected) {
-                           bgColor = 'bg-amber-500';
-                           cursor = 'cursor-pointer';
+                      if (!isBooked && isTempSelected) {
+                          bgColor = 'bg-amber-500';
                       }
+                      
+                      const cursor = isBooked ? 'cursor-not-allowed' : 'cursor-pointer';
 
                       return (
                           <div 
@@ -241,12 +261,25 @@ export default function App() {
                               className={`h-12 relative ${isEditMode ? cursor : ''}`}
                               onClick={() => isEditMode && handleHourSelect(hour)}
                           >
-                            <div className={`absolute inset-0 w-full h-full rounded-md ${bgColor} transition-colors`}>
-                               {content}
-                            </div>
+                            <div className={`absolute inset-0 w-full h-full rounded-md ${bgColor} transition-colors`}></div>
                           </div>
                       );
                   })}
+                  
+                  {/* Layer 2: Overlay for permanently booked blocks */}
+                  {bookedBlocks.map(block => (
+                    <div
+                        key={block.startHour}
+                        className="absolute inset-x-0 bg-amber-600/50 rounded-md"
+                        style={{ top: block.top, height: block.height }}
+                    >
+                        {isEditMode && (
+                            <div className="p-2 text-white/70 text-xs flex items-center">
+                                <LockIcon /> Booked
+                            </div>
+                        )}
+                    </div>
+                  ))}
               </div>
           </div>
       )
